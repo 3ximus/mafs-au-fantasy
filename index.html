@@ -45,16 +45,16 @@
       /* New Image-based Chips */
       .roster-preview {
         display: flex;
-        gap: -5px;
-      } /* Slight overlap for style */
+        gap: 10px;
+        align-items: center;
+      }
       .top-roster-img {
-        width: 50px;
-        height: 50px;
-        border-radius: 50%;
+        width: 80px;
+        height: 60px;
+        border-radius: 5%;
         border: 2px solid var(--gold);
         object-fit: cover;
         background: #333;
-        margin-left: -8px; /* The overlap */
       }
 
       .nav-btns button {
@@ -221,8 +221,15 @@
       </div>
       <div class="roster-preview" id="top-roster-preview"></div>
       <div class="nav-btns">
-        <button onclick="showScreen('screen-roster')">✏️ Edit Roster</button>
-        <button onclick="showScreen('screen-leaderboard')">🏆 Scores</button>
+        <button onclick="showScreen('screen-voting')">
+          ✅ Weekly questions
+        </button>
+        <button onclick="showScreen('screen-roster')">
+          ✏️ Change my Roster
+        </button>
+        <button onclick="showScreen('screen-leaderboard')">
+          🏆 Leaderboard
+        </button>
       </div>
     </div>
 
@@ -233,7 +240,7 @@
       </section>
 
       <section id="screen-roster" class="hidden">
-        <h2>My Weekly Team</h2>
+        <h2>This Week's Roster</h2>
         <p>Select the <b>2 couples</b> you want on your roster this week.</p>
         <div class="couple-grid" id="roster-grid"></div>
         <div class="footer-nav">
@@ -367,6 +374,9 @@
       function updateTopRoster() {
         const preview = document.getElementById("top-roster-preview");
         preview.innerHTML = "";
+        if (selectedRosterIds.length)
+          preview.innerHTML += `<h3>Your roster:</h3>`;
+
         selectedRosterIds.forEach((id) => {
           const couple = COUPLES.find((c) => c.id === id);
           preview.innerHTML += `<img src="${couple.img}" class="top-roster-img" title="${couple.name}">`;
@@ -374,27 +384,44 @@
       }
 
       function saveRoster() {
-        showScreen("screen-voting");
-        renderVoteStep();
+        fetch("/api/roster", {
+          method: "post",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            playerId: currentUser.id,
+            coupleIds: selectedRosterIds,
+          }),
+        })
+          .then((r) => {
+            showScreen("screen-voting");
+            renderVoteStep();
+          })
+          .catch((e) => console.error(e));
       }
 
       function renderVoteStep() {
-        const q = QUESTIONS[voteIdx];
-        document.getElementById("vote-count").innerText =
-          `QUESTION ${voteIdx + 1} OF ${QUESTIONS.length}`;
-        document.getElementById("vote-question").innerText = q.text;
+        if (voteIdx < QUESTIONS.length) {
+          const q = QUESTIONS[voteIdx];
+          document.getElementById("vote-count").innerText =
+            `QUESTION ${voteIdx + 1} OF ${QUESTIONS.length}`;
+          document.getElementById("vote-question").innerText = q.text;
 
-        const currentSelection = currentVotes[q.id] || null;
-        renderGrid("voting-grid", currentSelection, (coupleId) => {
-          currentVotes[q.id] = coupleId;
-          renderVoteStep();
-        });
+          const currentSelection = currentVotes[q.id] || null;
+          renderGrid("voting-grid", currentSelection, (coupleId) => {
+            currentVotes[q.id] = coupleId;
+            renderVoteStep();
+          });
 
-        document.getElementById("btn-next-vote").innerText =
-          voteIdx === QUESTIONS.length - 1 ? "Finish" : "Next";
-        document.getElementById("btn-next-vote").disabled = !currentVotes[q.id];
-        document.getElementById("btn-prev-vote").style.visibility =
-          voteIdx === 0 ? "hidden" : "visible";
+          document.getElementById("btn-next-vote").innerText =
+            voteIdx === QUESTIONS.length - 1 ? "Finish" : "Next";
+          document.getElementById("btn-next-vote").disabled =
+            !currentVotes[q.id];
+          document.getElementById("btn-prev-vote").style.visibility =
+            voteIdx === 0 ? "hidden" : "visible";
+        } else {
+          // Votes overview
+          // TODO do this part
+        }
       }
 
       function nextVote() {
@@ -402,8 +429,7 @@
           voteIdx++;
           renderVoteStep();
         } else {
-          alert("All choices confirmed!");
-          location.reload();
+          // TODO do this part
         }
       }
 
