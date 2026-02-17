@@ -221,9 +221,7 @@
       </div>
       <div class="roster-preview" id="top-roster-preview"></div>
       <div class="nav-btns">
-        <button onclick="showScreen('screen-voting')">
-          ✅ Weekly questions
-        </button>
+        <button onclick="startVoting()">✅ Weekly questions</button>
         <button onclick="showScreen('screen-roster')">
           ✏️ Change my Roster
         </button>
@@ -276,6 +274,32 @@
           >
             Next
           </button>
+        </div>
+      </section>
+
+      <section id="screen-overview" class="hidden">
+        <div
+          style="
+            background: white;
+            padding: 20px;
+            border-radius: 15px;
+            box-shadow: 0 4px 10px rgba(0, 0, 0, 0.1);
+          "
+        >
+          <h2 style="text-align: center">Review Your Ballot</h2>
+          <div id="overview-list" style="margin-bottom: 20px"></div>
+          <div class="footer-nav">
+            <button class="btn-outline" onclick="showScreen('screen-voting')">
+              Edit Votes
+            </button>
+            <button
+              class="btn-main"
+              style="background: #2b9348"
+              onclick="submitFinalVotes()"
+            >
+              Submit to Couch Bets
+            </button>
+          </div>
         </div>
       </section>
 
@@ -337,6 +361,8 @@
         updateTopRoster();
         showScreen("screen-roster");
         renderGrid("roster-grid", selectedRosterIds, handleRosterClick);
+        document.getElementById("btn-save-roster").disabled =
+          selectedRosterIds.length !== 2;
       }
 
       function renderGrid(containerId, selectionList, clickHandler) {
@@ -399,38 +425,68 @@
           .catch((e) => console.error(e));
       }
 
+      function startVoting() {
+        showScreen("screen-voting");
+        renderVoteStep();
+      }
+
       function renderVoteStep() {
-        if (voteIdx < QUESTIONS.length) {
-          const q = QUESTIONS[voteIdx];
-          document.getElementById("vote-count").innerText =
-            `QUESTION ${voteIdx + 1} OF ${QUESTIONS.length}`;
-          document.getElementById("vote-question").innerText = q.text;
+        if (!QUESTIONS.length) return;
 
-          const currentSelection = currentVotes[q.id] || null;
-          renderGrid("voting-grid", currentSelection, (coupleId) => {
-            currentVotes[q.id] = coupleId;
-            renderVoteStep();
-          });
-
-          document.getElementById("btn-next-vote").innerText =
-            voteIdx === QUESTIONS.length - 1 ? "Finish" : "Next";
-          document.getElementById("btn-next-vote").disabled =
-            !currentVotes[q.id];
-          document.getElementById("btn-prev-vote").style.visibility =
-            voteIdx === 0 ? "hidden" : "visible";
-        } else {
-          // Votes overview
-          // TODO do this part
+        if (voteIdx >= QUESTIONS.length) {
+          renderOverview();
+          return;
         }
+
+        const q = QUESTIONS[voteIdx];
+        document.getElementById("vote-count").innerText =
+          `QUESTION ${voteIdx + 1} OF ${QUESTIONS.length}`;
+        document.getElementById("vote-question").innerText = q.text;
+
+        const currentSelection = currentVotes[q.id] || null;
+
+        renderGrid("voting-grid", currentSelection, (coupleId) => {
+          currentVotes[q.id] = coupleId;
+          renderVoteStep();
+        });
+
+        document.getElementById("btn-next-vote").innerText =
+          voteIdx === QUESTIONS.length - 1 ? "Finish" : "Next";
+        document.getElementById("btn-next-vote").disabled = !currentVotes[q.id];
+        document.getElementById("btn-prev-vote").style.visibility =
+          voteIdx === 0 ? "hidden" : "visible";
+      }
+
+      function renderOverview() {
+        showScreen("screen-overview");
+        const container = document.getElementById("overview-list");
+        container.innerHTML = "";
+
+        QUESTIONS.forEach((q) => {
+          const selectedCoupleId = currentVotes[q.id];
+          const couple = COUPLES.find((c) => c.id === selectedCoupleId);
+
+          const row = document.createElement("div");
+          row.style =
+            "display: flex; align-items: center; justify-content: space-between; padding: 10px; border-bottom: 1px solid #eee;";
+          row.innerHTML = `
+            <div style="flex: 1;">
+                <p style="font-size: 0.75rem; color: #666; margin: 0;">${q.text}</p>
+                <strong style="font-size: 0.9rem;">${couple ? couple.name : "No selection"}</strong>
+            </div>
+            ${couple ? `<img src="${couple.img}" style="width: 50px; height: 35px; object-fit: cover; border-radius: 4px; border: 1px solid var(--gold);">` : ""}
+        `;
+          container.appendChild(row);
+        });
       }
 
       function nextVote() {
         if (voteIdx < QUESTIONS.length - 1) {
-          voteIdx++;
           renderVoteStep();
         } else {
-          // TODO do this part
+          renderOverview();
         }
+        voteIdx++;
       }
 
       function prevVote() {
@@ -440,7 +496,37 @@
         }
       }
 
-      // --- NEW: LEADERBOARD WITH ROSTER PICTURES ---
+      function submitFinalVotes() {
+        // We send an array of vote objects to the backend
+        const payload = {
+          playerId: currentUser.id,
+          votes: Object.keys(currentVotes).map((qId) => ({
+            questionId: parseInt(qId),
+            coupleId: currentVotes[qId],
+          })),
+        };
+
+        fetch("/api/vote", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload),
+        })
+          .then(async (r) => {
+            if (r.ok) {
+              alert("Ballot Locked! Good luck with the drama tonight.");
+              // Refresh players to show updated trains/rosters on leaderboard
+              const updatedPlayers = await fetch("/api/players").then((r) =>
+                r.json(),
+              );
+              renderLeaderboard(updatedPlayers);
+              showScreen("screen-leaderboard");
+            } else {
+              alert("Error submitting votes. Try again.");
+            }
+          })
+          .catch((e) => console.error("Vote Submission Error:", e));
+      }
+
       function renderLeaderboard(players) {
         const lb = document.getElementById("leaderboard-content");
         lb.innerHTML = "";

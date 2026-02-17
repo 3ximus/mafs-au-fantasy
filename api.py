@@ -104,29 +104,30 @@ def update_roster():
 
 
 @app.route('/api/vote', methods=['POST'])
-def submit_vote():
+def submit_vote_batch():
   data = request.json
-  # Upsert logic: check if vote exists for this player/question
-  existing_vote = Vote.query.filter_by(
-      player_id=data['playerId'],
-      question_id=data['questionId']
-  ).first()
+  player_id = data.get('playerId')
+  votes = data.get('votes')  # This is the list of {questionId, coupleId}
 
-  if existing_vote:
-    existing_vote.couple_id = data['coupleId']
-  else:
-    new_vote = Vote(
-        player_id=data['playerId'],
-        question_id=data['questionId'],
-        couple_id=data['coupleId']
-    )
-    db.session.add(new_vote)
+  for v in votes:
+    # Check if vote exists to update, or create new
+    existing_vote = Vote.query.filter_by(
+        player_id=player_id,
+        question_id=v['questionId']
+    ).first()
+
+    if existing_vote:
+      existing_vote.couple_id = v['coupleId']
+    else:
+      new_vote = Vote(
+          player_id=player_id,
+          question_id=v['questionId'],
+          couple_id=v['coupleId']
+      )
+      db.session.add(new_vote)
 
   db.session.commit()
-  return jsonify({'message': 'Vote recorded'}), 200
-
-# --- SEEDING (Run once to populate DB) ---
-
+  return jsonify({'status': 'success', 'message': 'Ballot processed'}), 200
 
 def seed_db():
   db.create_all()
