@@ -1,0 +1,463 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>MAFS 2026: Couch Bets</title>
+    <style>
+      :root {
+        --mafs-red: #d90429;
+        --gold: #d4af37;
+        --dark: #111;
+        --light: #f4f4f9;
+      }
+
+      body {
+        font-family: "Inter", system-ui, sans-serif;
+        background: var(--light);
+        margin: 0;
+        padding: 0;
+        color: var(--dark);
+      }
+
+      /* --- PERSISTENT TOP BAR --- */
+      #top-bar {
+        background: var(--dark);
+        color: white;
+        padding: 10px 20px;
+        position: sticky;
+        top: 0;
+        z-index: 1000;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        height: 70px;
+        box-shadow: 0 4px 10px rgba(0, 0, 0, 0.2);
+      }
+
+      .user-info {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        font-weight: bold;
+      }
+
+      /* New Image-based Chips */
+      .roster-preview {
+        display: flex;
+        gap: -5px;
+      } /* Slight overlap for style */
+      .top-roster-img {
+        width: 50px;
+        height: 50px;
+        border-radius: 50%;
+        border: 2px solid var(--gold);
+        object-fit: cover;
+        background: #333;
+        margin-left: -8px; /* The overlap */
+      }
+
+      .nav-btns button {
+        background: #222;
+        color: white;
+        border: 1px solid #444;
+        padding: 8px 12px;
+        border-radius: 6px;
+        cursor: pointer;
+        font-size: 0.7rem;
+        margin-left: 5px;
+      }
+
+      /* --- LAYOUT --- */
+      .container {
+        max-width: 900px;
+        margin: 20px auto;
+        padding: 0 15px;
+        padding-bottom: 100px;
+      }
+      .hidden {
+        display: none !important;
+      }
+
+      /* --- SHARED GRID STYLES --- */
+      .couple-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+        gap: 15px;
+        margin-top: 20px;
+      }
+
+      .couple-card {
+        background: white;
+        border-radius: 12px;
+        overflow: hidden;
+        border: 3px solid transparent;
+        cursor: pointer;
+        transition: 0.2s;
+        position: relative;
+      }
+      .couple-card img {
+        width: 100%;
+        height: 140px;
+        object-fit: cover;
+      }
+      .card-info {
+        padding: 10px;
+        text-align: center;
+      }
+      .card-info h4 {
+        margin: 0;
+        font-size: 0.9rem;
+      }
+
+      .couple-card.selected {
+        border-color: var(--gold);
+        transform: translateY(-3px);
+      }
+      .check-mark {
+        position: absolute;
+        top: 10px;
+        right: 10px;
+        background: var(--gold);
+        color: var(--dark);
+        width: 24px;
+        height: 24px;
+        border-radius: 50%;
+        display: none;
+        align-items: center;
+        justify-content: center;
+        font-weight: bold;
+        z-index: 10;
+      }
+      .couple-card.selected .check-mark {
+        display: flex;
+      }
+
+      /* --- FOOTER NAVIGATION --- */
+      .footer-nav {
+        position: fixed;
+        bottom: 0;
+        left: 0;
+        right: 0;
+        background: white;
+        padding: 20px;
+        display: flex;
+        justify-content: center;
+        gap: 10px;
+        box-shadow: 0 -4px 10px rgba(0, 0, 0, 0.05);
+        z-index: 900;
+      }
+
+      .btn-main {
+        background: var(--dark);
+        color: white;
+        padding: 12px 30px;
+        border-radius: 25px;
+        border: none;
+        font-weight: bold;
+        cursor: pointer;
+      }
+      .btn-main:disabled {
+        opacity: 0.3;
+      }
+      .btn-outline {
+        background: white;
+        color: var(--dark);
+        border: 2px solid var(--dark);
+        padding: 12px 30px;
+        border-radius: 25px;
+        font-weight: bold;
+        cursor: pointer;
+      }
+
+      /* --- LEADERBOARD --- */
+      .lb-row {
+        background: white;
+        padding: 15px;
+        border-radius: 12px;
+        margin-bottom: 10px;
+        box-shadow: 0 2px 5px rgba(0, 0, 0, 0.05);
+      }
+      .lb-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 10px;
+      }
+      .lb-roster-display {
+        display: flex;
+        gap: 10px;
+        margin-top: 5px;
+      }
+      .lb-couple-mini {
+        width: 45px;
+        height: 45px;
+        border-radius: 8px;
+        object-fit: cover;
+        border: 1px solid #ddd;
+      }
+
+      .track {
+        flex-grow: 1;
+        height: 8px;
+        background: #eee;
+        border-radius: 4px;
+        position: relative;
+        margin: 15px 0;
+      }
+      .train {
+        position: absolute;
+        top: -10px;
+        transition: 1s;
+        font-size: 1.2rem;
+      }
+    </style>
+  </head>
+  <body>
+    <div id="top-bar" class="hidden">
+      <div class="user-info">
+        <span id="user-avatar"></span>
+        <span id="user-name"></span>
+      </div>
+      <div class="roster-preview" id="top-roster-preview"></div>
+      <div class="nav-btns">
+        <button onclick="showScreen('screen-roster')">✏️ Edit Roster</button>
+        <button onclick="showScreen('screen-leaderboard')">🏆 Scores</button>
+      </div>
+    </div>
+
+    <div class="container">
+      <section id="screen-login">
+        <h1 style="text-align: center">Who is playing?</h1>
+        <div id="login-list" style="display: grid; gap: 10px"></div>
+      </section>
+
+      <section id="screen-roster" class="hidden">
+        <h2>My Weekly Team</h2>
+        <p>Select the <b>2 couples</b> you want on your roster this week.</p>
+        <div class="couple-grid" id="roster-grid"></div>
+        <div class="footer-nav">
+          <button
+            class="btn-main"
+            id="btn-save-roster"
+            disabled
+            onclick="saveRoster()"
+          >
+            Save & Go to Voting
+          </button>
+        </div>
+      </section>
+
+      <section id="screen-voting" class="hidden">
+        <div style="text-align: center">
+          <span
+            id="vote-count"
+            style="color: var(--mafs-red); font-weight: bold; font-size: 0.8rem"
+          ></span>
+          <h2 id="vote-question"></h2>
+        </div>
+        <div class="couple-grid" id="voting-grid"></div>
+        <div class="footer-nav">
+          <button class="btn-outline" id="btn-prev-vote" onclick="prevVote()">
+            Back
+          </button>
+          <button
+            class="btn-main"
+            id="btn-next-vote"
+            disabled
+            onclick="nextVote()"
+          >
+            Next
+          </button>
+        </div>
+      </section>
+
+      <section id="screen-leaderboard" class="hidden">
+        <div style="padding: 0 5px">
+          <h2>Live Rankings</h2>
+          <div id="leaderboard-content"></div>
+          <button
+            class="btn-main"
+            style="width: 100%; margin-top: 20px"
+            onclick="closeLeaderboard()"
+          >
+            Back to Game
+          </button>
+        </div>
+      </section>
+    </div>
+
+    <script>
+      // DATA
+      let COUPLES = [];
+      let QUESTIONS = [];
+
+      let currentUser = null;
+      let selectedRosterIds = [];
+      let currentVotes = {};
+      let voteIdx = 0;
+      let lastActiveScreen = "screen-roster";
+
+      window.onload = async () => {
+        const players = await fetch("/api/players").then((r) => r.json());
+        COUPLES = await fetch("/api/couples").then((r) => r.json());
+        QUESTIONS = await fetch("/api/questions").then((r) => r.json());
+
+        renderLogin(players);
+        renderLeaderboard(players);
+        const savedId = localStorage.getItem("mafs_uid");
+        if (savedId) {
+          const p = players.find((p) => p.id == savedId);
+          selectedRosterIds = [...p.roster];
+          login(p);
+        }
+      };
+
+      function showScreen(id) {
+        if (id !== "screen-leaderboard") lastActiveScreen = id;
+        document
+          .querySelectorAll("section")
+          .forEach((s) => s.classList.add("hidden"));
+        document.getElementById(id).classList.remove("hidden");
+      }
+
+      function login(player) {
+        currentUser = player;
+        localStorage.setItem("mafs_uid", player.id);
+        document.getElementById("top-bar").classList.remove("hidden");
+        document.getElementById("user-avatar").innerText = player.avatar;
+        document.getElementById("user-name").innerText = player.name;
+        updateTopRoster();
+        showScreen("screen-roster");
+        renderGrid("roster-grid", selectedRosterIds, handleRosterClick);
+      }
+
+      function renderGrid(containerId, selectionList, clickHandler) {
+        const container = document.getElementById(containerId);
+        container.innerHTML = "";
+        COUPLES.forEach((c) => {
+          const isSelected = Array.isArray(selectionList)
+            ? selectionList.includes(c.id)
+            : selectionList === c.id;
+
+          const card = document.createElement("div");
+          card.className = `couple-card ${isSelected ? "selected" : ""}`;
+          card.innerHTML = `
+                <div class="check-mark">✓</div>
+                <img src="${c.img}">
+                <div class="card-info"><h4>${c.name}</h4></div>
+            `;
+          card.onclick = () => clickHandler(c.id);
+          container.appendChild(card);
+        });
+      }
+
+      function handleRosterClick(id) {
+        const idx = selectedRosterIds.indexOf(id);
+        if (idx > -1) selectedRosterIds.splice(idx, 1);
+        else if (selectedRosterIds.length < 2) selectedRosterIds.push(id);
+
+        renderGrid("roster-grid", selectedRosterIds, handleRosterClick);
+        updateTopRoster();
+        document.getElementById("btn-save-roster").disabled =
+          selectedRosterIds.length !== 2;
+      }
+
+      // --- NEW: TOP ROSTER WITH IMAGES ---
+      function updateTopRoster() {
+        const preview = document.getElementById("top-roster-preview");
+        preview.innerHTML = "";
+        selectedRosterIds.forEach((id) => {
+          const couple = COUPLES.find((c) => c.id === id);
+          preview.innerHTML += `<img src="${couple.img}" class="top-roster-img" title="${couple.name}">`;
+        });
+      }
+
+      function saveRoster() {
+        showScreen("screen-voting");
+        renderVoteStep();
+      }
+
+      function renderVoteStep() {
+        const q = QUESTIONS[voteIdx];
+        document.getElementById("vote-count").innerText =
+          `QUESTION ${voteIdx + 1} OF ${QUESTIONS.length}`;
+        document.getElementById("vote-question").innerText = q.text;
+
+        const currentSelection = currentVotes[q.id] || null;
+        renderGrid("voting-grid", currentSelection, (coupleId) => {
+          currentVotes[q.id] = coupleId;
+          renderVoteStep();
+        });
+
+        document.getElementById("btn-next-vote").innerText =
+          voteIdx === QUESTIONS.length - 1 ? "Finish" : "Next";
+        document.getElementById("btn-next-vote").disabled = !currentVotes[q.id];
+        document.getElementById("btn-prev-vote").style.visibility =
+          voteIdx === 0 ? "hidden" : "visible";
+      }
+
+      function nextVote() {
+        if (voteIdx < QUESTIONS.length - 1) {
+          voteIdx++;
+          renderVoteStep();
+        } else {
+          alert("All choices confirmed!");
+          location.reload();
+        }
+      }
+
+      function prevVote() {
+        if (voteIdx > 0) {
+          voteIdx--;
+          renderVoteStep();
+        }
+      }
+
+      // --- NEW: LEADERBOARD WITH ROSTER PICTURES ---
+      function renderLeaderboard(players) {
+        const lb = document.getElementById("leaderboard-content");
+        lb.innerHTML = "";
+        players
+          .sort((a, b) => b.score - a.score)
+          .forEach((p) => {
+            const pct = Math.min((p.score / 200) * 100, 100);
+
+            // Generate roster images for this specific player
+            const rosterHTML = p.roster
+              .map((cId) => {
+                const c = COUPLES.find((item) => item.id === cId);
+                return `<img src="${c.img}" class="lb-couple-mini" title="${c.name}">`;
+              })
+              .join("");
+
+            lb.innerHTML += `
+                <div class="lb-row">
+                    <div class="lb-header">
+                        <span style="font-weight:bold">${p.avatar} ${p.name}</span>
+                        <span style="color:var(--mafs-red); font-weight:900;">${p.score} PTS</span>
+                    </div>
+                    <div class="track"><div class="train" style="left:${pct}%">${p.avatar}</div></div>
+                    <div style="font-size:0.65rem; color:#777; margin-top:10px; text-transform:uppercase; letter-spacing:1px;">Active Roster:</div>
+                    <div class="lb-roster-display">${rosterHTML}</div>
+                </div>`;
+          });
+      }
+
+      function renderLogin(players) {
+        const list = document.getElementById("login-list");
+        players.forEach((p) => {
+          const b = document.createElement("button");
+          b.className = "btn-main";
+          b.innerText = `${p.avatar} ${p.name}`;
+          b.onclick = () => login(p);
+          list.appendChild(b);
+        });
+      }
+
+      function closeLeaderboard() {
+        showScreen(lastActiveScreen);
+      }
+    </script>
+  </body>
+</html>
